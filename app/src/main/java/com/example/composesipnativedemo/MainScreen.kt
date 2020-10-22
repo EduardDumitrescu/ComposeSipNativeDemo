@@ -97,7 +97,7 @@ fun Logs(
     val scrollState = rememberScrollState()
     ScrollableColumn(scrollState = scrollState, modifier = modifier) {
         logs.forEach { log ->
-            Text(log)
+            Text(log, modifier = Modifier.padding(end = 4.dp))
         }
     }
     if (needsToScroll) {

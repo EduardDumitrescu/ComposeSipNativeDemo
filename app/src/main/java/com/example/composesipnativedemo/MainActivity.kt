@@ -10,17 +10,11 @@ import android.os.Build
 import android.os.Bundle
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.Text
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Surface
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.setContent
 import androidx.core.content.ContextCompat
-import androidx.ui.tooling.preview.Preview
-import com.example.composesipnativedemo.ui.ComposeSipNativeDemoTheme
 
 class MainActivity : AppCompatActivity() {
     //sip stuff
@@ -69,14 +63,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openForCalls() {
-        val intent = Intent("android.SipDemo.INCOMING_CALL")
-        val pendingIntent: PendingIntent =
-            PendingIntent.getBroadcast(this, 0, intent, Intent.FILL_IN_DATA)
+        try {
 
-        sipProfile = buildProfile(user = currentUser)
-        sipManager.open(sipProfile, pendingIntent, null)
-//        createSipSession()
-        listenForRegister()
+
+            val intent = Intent("android.SipDemo.INCOMING_CALL")
+            val pendingIntent: PendingIntent =
+                PendingIntent.getBroadcast(this, 0, intent, Intent.FILL_IN_DATA)
+
+            sipProfile = buildProfile(user = currentUser)
+            sipManager.open(sipProfile, pendingIntent, null)
+            //createSipSession()
+            listenForRegister()
+        } catch (err: Exception) {
+            addLog("openForCalls Exception - ${err.message}")
+        }
     }
 
     private fun registerReceiver() {
@@ -86,80 +86,82 @@ class MainActivity : AppCompatActivity() {
         this.registerReceiver(callReceiver, filter)
     }
 
+    private fun sipSessionListener() : SipSession.Listener = object : SipSession.Listener() {
+        override fun onCalling(session: SipSession?) {
+            super.onCalling(session)
+            addLog("onCalling")
+        }
+
+        override fun onRinging(
+            session: SipSession?,
+            caller: SipProfile?,
+            sessionDescription: String?
+        ) {
+            super.onRinging(session, caller, sessionDescription)
+            addLog("onRinging - Caller:$caller, SessionDescription:$sessionDescription")
+        }
+
+        override fun onRingingBack(session: SipSession?) {
+            super.onRingingBack(session)
+            addLog("onRingingBack")
+        }
+
+        override fun onCallEstablished(session: SipSession?, sessionDescription: String?) {
+            super.onCallEstablished(session, sessionDescription)
+            addLog("onCallEstablished - SessionDescription:$sessionDescription")
+        }
+
+        override fun onCallEnded(session: SipSession?) {
+            super.onCallEnded(session)
+            addLog("onCallEnded")
+        }
+
+        override fun onCallBusy(session: SipSession?) {
+            super.onCallBusy(session)
+            addLog("onCallBusy")
+        }
+
+        override fun onError(session: SipSession?, errorCode: Int, errorMessage: String?) {
+            super.onError(session, errorCode, errorMessage)
+            addLog("onError - ErrorCode:$errorCode, ErrorMessage:$errorMessage")
+        }
+
+        override fun onCallChangeFailed(
+            session: SipSession?,
+            errorCode: Int,
+            errorMessage: String?
+        ) {
+            super.onCallChangeFailed(session, errorCode, errorMessage)
+            addLog("onCallChangeFailed - ErrorCode:$errorCode, ErrorMessage:$errorMessage")
+        }
+
+        override fun onRegistering(session: SipSession?) {
+            super.onRegistering(session)
+            addLog("onResitering")
+        }
+
+        override fun onRegistrationDone(session: SipSession?, duration: Int) {
+            super.onRegistrationDone(session, duration)
+            addLog("onRegistrationDone - $duration")
+        }
+
+        override fun onRegistrationFailed(
+            session: SipSession?,
+            errorCode: Int,
+            errorMessage: String?
+        ) {
+            super.onRegistrationFailed(session, errorCode, errorMessage)
+            addLog("onRegistrationFailed - ErrorCode:$errorCode, ErrorMessage:$errorMessage")
+        }
+
+        override fun onRegistrationTimeout(session: SipSession?) {
+            super.onRegistrationTimeout(session)
+            addLog("onRegistrationTimeout")
+        }
+    }
+
     private fun createSipSession() {
-        sipManager.createSipSession(sipProfile, object : SipSession.Listener() {
-            override fun onCalling(session: SipSession?) {
-                super.onCalling(session)
-                addLog("onCalling")
-            }
-
-            override fun onRinging(
-                session: SipSession?,
-                caller: SipProfile?,
-                sessionDescription: String?
-            ) {
-                super.onRinging(session, caller, sessionDescription)
-                addLog("onRinging - Caller:$caller, SessionDescription:$sessionDescription")
-            }
-
-            override fun onRingingBack(session: SipSession?) {
-                super.onRingingBack(session)
-                addLog("onRingingBack")
-            }
-
-            override fun onCallEstablished(session: SipSession?, sessionDescription: String?) {
-                super.onCallEstablished(session, sessionDescription)
-                addLog("onCallEstablished - SessionDescription:$sessionDescription")
-            }
-
-            override fun onCallEnded(session: SipSession?) {
-                super.onCallEnded(session)
-                addLog("onCallEnded")
-            }
-
-            override fun onCallBusy(session: SipSession?) {
-                super.onCallBusy(session)
-                addLog("onCallBusy")
-            }
-
-            override fun onError(session: SipSession?, errorCode: Int, errorMessage: String?) {
-                super.onError(session, errorCode, errorMessage)
-                addLog("onError - ErrorCode:$errorCode, ErrorMessage:$errorMessage")
-            }
-
-            override fun onCallChangeFailed(
-                session: SipSession?,
-                errorCode: Int,
-                errorMessage: String?
-            ) {
-                super.onCallChangeFailed(session, errorCode, errorMessage)
-                addLog("onCallChangeFailed - ErrorCode:$errorCode, ErrorMessage:$errorMessage")
-            }
-
-            override fun onRegistering(session: SipSession?) {
-                super.onRegistering(session)
-                addLog("onResitering")
-            }
-
-            override fun onRegistrationDone(session: SipSession?, duration: Int) {
-                super.onRegistrationDone(session, duration)
-                addLog("onRegistrationDone - $duration")
-            }
-
-            override fun onRegistrationFailed(
-                session: SipSession?,
-                errorCode: Int,
-                errorMessage: String?
-            ) {
-                super.onRegistrationFailed(session, errorCode, errorMessage)
-                addLog("onRegistrationFailed - ErrorCode:$errorCode, ErrorMessage:$errorMessage")
-            }
-
-            override fun onRegistrationTimeout(session: SipSession?) {
-                super.onRegistrationTimeout(session)
-                addLog("onRegistrationTimeout")
-            }
-        })
+        sipManager.createSipSession(sipProfile, sipSessionListener())
     }
 
     private fun buildProfile(user: User) :SipProfile = SipProfile.Builder(user.username, sipServer)
@@ -195,7 +197,9 @@ class MainActivity : AppCompatActivity() {
                 call.apply {
                     startAudio()
                     setSpeakerMode(true)
-                    toggleMute()
+                    if(isMuted) {
+                        toggleMute()
+                    }
                 }
             }
 

@@ -28,7 +28,7 @@ class IncomingCallReceiver : BroadcastReceiver() {
                     toggleMute()
                 }
                 mainActivity.call = this
-//                mainActivity.updateStatus(this)
+                mainActivity.addLog("onReceive - Incoming call")
             }
         } catch (e: Exception) {
             incomingCall?.close()
