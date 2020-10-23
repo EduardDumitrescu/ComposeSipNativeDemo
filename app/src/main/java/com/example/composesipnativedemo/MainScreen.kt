@@ -1,10 +1,12 @@
 package com.example.composesipnativedemo
 
+import androidx.compose.animation.animate
 import androidx.compose.foundation.ScrollableColumn
 import androidx.compose.foundation.Text
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.Button
+import androidx.compose.material.Colors
 import androidx.compose.material.Divider
 import androidx.compose.material.Scaffold
 import androidx.compose.runtime.Composable
@@ -20,12 +22,17 @@ fun MainScreen(
     currentUser: String = "",
     logs: List<String> = emptyList(),
     needsToScroll: Boolean = false,
+    isSpeakerEnabled: Boolean = false,
+    hasIncomingCall: Boolean = false,
     changeUser: () -> Unit = {},
     start: () -> Unit = {},
     stop: () -> Unit = {},
     resetNeedsToScroll: () -> Unit = {},
     clearLogs: () -> Unit = {},
     makeCall: () -> Unit = {},
+    toggleSpeaker: () -> Unit = {},
+    hangup: () -> Unit = {},
+    answer:() -> Unit = {},
 ) {
     ComposeSipNativeDemoTheme {
         Scaffold {
@@ -45,10 +52,24 @@ fun MainScreen(
                         Text(text = "Stop")
                     }
                 }
+                val answerColor = animate(target = if (hasIncomingCall) Color.Green else Color.Gray)
+                Row(horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Button(onClick = makeCall, modifier = Modifier.padding(8.dp)) {
+                        Text(text = "Call")
+                    }
+                    Button(onClick = answer, modifier = Modifier.padding(8.dp), /*enabled = hasIncomingCall,*/ backgroundColor = answerColor) {
+                        Text(text = "Answer")
+                    }
+                    Button(onClick = hangup, modifier = Modifier.padding(8.dp)) {
+                        Text(text = "Hangup")
+                    }
+                }
 
-
-                Button(onClick = makeCall, modifier = Modifier.padding(8.dp)) {
-                    Text(text = "Call")
+                Row(horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = toggleSpeaker, modifier = Modifier.padding(8.dp)) {
+                        Text(text = "Speaker")
+                    }
+                    Text(text = "Speaker status: ${if(isSpeakerEnabled) "On" else "Off"}")
                 }
 
                 LogsZone(
@@ -101,7 +122,7 @@ fun Logs(
         }
     }
     if (needsToScroll) {
-        scrollState.smoothScrollTo(logs.size.toFloat() * 100)
+        scrollState.smoothScrollTo(logs.size.toFloat() * 512)
         resetNeedsToScroll()
     }
 }

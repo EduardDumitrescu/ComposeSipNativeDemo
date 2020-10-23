@@ -5,9 +5,12 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
 import android.net.sip.*
 import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.getValue
@@ -16,7 +19,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.setContent
 import androidx.core.content.ContextCompat
 
+
 class MainActivity : AppCompatActivity() {
+    private val v by lazy { getSystemService(VIBRATOR_SERVICE) as Vibrator }
+    private val r by lazy {
+        val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+        RingtoneManager.getRingtone(applicationContext, notification)
+    }
+
     //sip stuff
     val sipManager: SipManager by lazy(LazyThreadSafetyMode.NONE) {
         SipManager.newInstance(this)
@@ -37,13 +47,16 @@ class MainActivity : AppCompatActivity() {
     var otherUser by mutableStateOf(SDK2_USER)
 
     //logs
-    var needsToScroll: Boolean by mutableStateOf(true)
+    private var needsToScroll: Boolean by mutableStateOf(true)
+    private var isSpeakerEnabled: Boolean by mutableStateOf(false)
+    private var hasIncomingCall: Boolean by mutableStateOf(false)
     var logs by mutableStateOf(listOf<String>())
         private set
 
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             MainScreen(
                 currentUser = currentUser.username,
@@ -54,7 +67,12 @@ class MainActivity : AppCompatActivity() {
                 start = this::openForCalls,
                 stop = this::closeLocalProfile,
                 resetNeedsToScroll = this::resetNeedsToScroll,
-                clearLogs = this::clearLogs
+                clearLogs = this::clearLogs,
+                hangup = this::hangUp,
+                toggleSpeaker = this::toggleSpeaker,
+                isSpeakerEnabled = isSpeakerEnabled,
+                hasIncomingCall = hasIncomingCall,
+                answer = this::answerCall
             )
         }
 
@@ -64,8 +82,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun openForCalls() {
         try {
-
-
             val intent = Intent("android.SipDemo.INCOMING_CALL")
             val pendingIntent: PendingIntent =
                 PendingIntent.getBroadcast(this, 0, intent, Intent.FILL_IN_DATA)
@@ -86,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         this.registerReceiver(callReceiver, filter)
     }
 
-    private fun sipSessionListener() : SipSession.Listener = object : SipSession.Listener() {
+    private fun sipSessionListener(): SipSession.Listener = object : SipSession.Listener() {
         override fun onCalling(session: SipSession?) {
             super.onCalling(session)
             addLog("onCalling")
@@ -164,8 +180,8 @@ class MainActivity : AppCompatActivity() {
         sipManager.createSipSession(sipProfile, sipSessionListener())
     }
 
-    private fun buildProfile(user: User) :SipProfile = SipProfile.Builder(user.username, sipServer)
-            .setPassword(user.password).build()
+    private fun buildProfile(user: User): SipProfile = SipProfile.Builder(user.username, sipServer)
+        .setPassword(user.password).build()
 
     private fun listenForRegister() {
         sipManager.setRegistrationListener(sipProfile?.uriString, object :
@@ -189,24 +205,68 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun makeCall() {
-        val listener: SipAudioCall.Listener = object : SipAudioCall.Listener() {
+    fun sipAudioCallListener(): SipAudioCall.Listener = object : SipAudioCall.Listener() {
+        override fun onReadyToCall(call: SipAudioCall?) {
+            super.onReadyToCall(call)
+            addLog("onReadyToCall")
+        }
 
-            override fun onCallEstablished(call: SipAudioCall) {
-                addLog("Call established")
-                call.apply {
-                    startAudio()
-                    setSpeakerMode(true)
-                    if(isMuted) {
-                        toggleMute()
-                    }
+        override fun onCalling(call: SipAudioCall?) {
+            super.onCalling(call)
+            addLog("onCalling")
+        }
+
+        override fun onRinging(call: SipAudioCall?, caller: SipProfile?) {
+            super.onRinging(call, caller)
+            hasIncomingCall = true
+            startRing()
+            addLog("onRinging")
+        }
+
+        override fun onRingingBack(call: SipAudioCall?) {
+            super.onRingingBack(call)
+            addLog("onRingingBack")
+        }
+
+        override fun onCallEstablished(call: SipAudioCall?) {
+            super.onCallEstablished(call)
+            addLog("onCallEstablished")
+            call?.apply {
+                startAudio()
+                if (isMuted) {
+                    toggleMute()
                 }
             }
-
-            override fun onCallEnded(call: SipAudioCall) {
-                addLog("Call ended")
-            }
         }
+
+        override fun onCallEnded(call: SipAudioCall?) {
+            super.onCallEnded(call)
+            addLog("onCallEnded")
+        }
+
+        override fun onCallBusy(call: SipAudioCall?) {
+            super.onCallBusy(call)
+            addLog("onCallBusy")
+        }
+
+        override fun onCallHeld(call: SipAudioCall?) {
+            super.onCallHeld(call)
+            addLog("onCallHeld")
+        }
+
+        override fun onError(call: SipAudioCall?, errorCode: Int, errorMessage: String?) {
+            super.onError(call, errorCode, errorMessage)
+            addLog("onError - ErrorCode: $")
+        }
+
+        override fun onChanged(call: SipAudioCall?) {
+            super.onChanged(call)
+            addLog("onChanged")
+        }
+    }
+
+    private fun makeCall() {
+        val listener: SipAudioCall.Listener = sipAudioCallListener()
 
         try {
             call = sipManager.makeAudioCall(
@@ -215,17 +275,48 @@ class MainActivity : AppCompatActivity() {
                 listener,
                 30
             )
-        } catch (error: java.lang.Exception) {
+        } catch (error: Exception) {
             addLog("Make call exception - ${error.message}")
         }
     }
 
+    private fun hangUp() {
+        try {
+            stopRing()
+            call?.endCall()
+            hasIncomingCall = false
+            addLog("hangUp - clicked")
+        } catch (e: Exception) {
+            addLog("hangUp: Error: ${e.message}")
+        }
+    }
+
+    private fun answerCall() {
+        try {
+            stopRing()
+            call?.answerCall(30)
+            hasIncomingCall = false
+            addLog("answerCall - clicked")
+        } catch (e: Exception) {
+            addLog("answerCall - Error: ${e.message}")
+        }
+    }
+
+    private fun toggleSpeaker() {
+        try {
+            isSpeakerEnabled = !isSpeakerEnabled
+            call?.setSpeakerMode(isSpeakerEnabled)
+            addLog("toggleSpeaker - clicked")
+        } catch (e: Exception) {
+            addLog("toggleSpeaker - Error: ${e.message}")
+        }
+    }
 
     private fun closeLocalProfile() {
         try {
             sipManager.close(sipProfile?.uriString)
         } catch (ee: Exception) {
-            addLog("Failed to close local profile")
+            addLog("closeLocalProfile - Error: ${ee.message}")
         }
     }
 
@@ -272,6 +363,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearLogs() {
         logs = emptyList()
+    }
+
+    private fun startRing() {
+        vibrate()
+        r.play()
+    }
+
+    private fun stopRing() {
+        v.cancel()
+        r.stop()
+    }
+
+    private fun vibrate() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            v.vibrate(
+                VibrationEffect.createWaveform(
+                    longArrayOf(0, 200, 100, 200),
+                    VibrationEffect.DEFAULT_AMPLITUDE
+                )
+            )
+        } else {
+            //deprecated in API 26
+            v.vibrate(longArrayOf(0, 200, 100, 200), 2)
+        }
     }
 }
 
